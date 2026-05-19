@@ -6,9 +6,12 @@
 .venv-1
 .venv313
 __pycache__
+backend
+models
 notebooks
 reports
 results
+src
 tests
 ui
 scripts

@@ -1,27 +1,35 @@
-# Vercel Deployment Guide
+# Vercel + Render Deployment Guide
 
-This repository now includes a Vercel-compatible Flask entrypoint in `api/index.py` and routing in `vercel.json`.
+This repository now uses a split deployment:
 
-## Important Note
+- Vercel hosts the lightweight frontend
+- Render hosts the Python backend API
+- models and runtime inference stay on Render
 
-The original UI in `ui/app.py` is a Streamlit app. Vercel does not host Streamlit apps directly the way `streamlit run` expects, so the Vercel deployment uses a lightweight Flask frontend that reuses the existing inference pipeline from `src/inference.py`.
+## Architecture
 
-## Files Added For Vercel
-
-- `api/index.py`: Vercel Python entrypoint
-- `vercel.json`: rewrites the site root and API requests to the Flask app
+- `index.html`: static frontend served by Vercel
+- `api/health.js`: tiny Vercel proxy for backend health
+- `api/generate.js`: tiny Vercel proxy for quiz generation
+- `backend/app.py`: Flask backend for Render
+- `backend/requirements.txt`: backend-only runtime dependencies
+- `render.yaml`: Render service definition
+- `vercel.json`: serves the static frontend
 - `.vercelignore`: excludes local-only folders and large non-runtime assets from deployment
-- `requirements.txt`: slim runtime dependencies for Vercel
-- `requirements-local.txt`: full local development dependencies for Streamlit and training
 
 ## Before You Deploy
 
 Make sure these files are committed and pushed to your GitHub repository:
 
-- `api/index.py`
+- `index.html`
+- `api/health.js`
+- `api/generate.js`
 - `vercel.json`
 - `.vercelignore`
-- `src/inference.py` update
+- `backend/app.py`
+- `backend/requirements.txt`
+- `render.yaml`
+- `src/inference.py`
 - `src/runtime_helpers.py`
 - `requirements.txt`
 
@@ -31,7 +39,41 @@ Deploy this repository:
 
 `muhammadyahya321/AI-ML-Project`
 
-## Steps On Vercel
+## Step 1: Deploy The Backend On Render
+
+1. Sign in at `https://render.com` with GitHub.
+2. Click `New` -> `Blueprint`.
+3. Select `muhammadyahya321/AI-ML-Project`.
+4. Render should detect `render.yaml`.
+5. Create the service.
+6. Wait for the backend build to finish.
+7. Open the backend URL and test:
+
+`https://your-render-service.onrender.com/api/health`
+
+You should get JSON like:
+
+```json
+{"ok": true, "demo_mode": false}
+```
+
+## Step 2: Configure Vercel To Point At Render
+
+After Render is live, copy the backend base URL.
+
+Example:
+
+`https://ai-ml-project-backend.onrender.com`
+
+Then in Vercel project settings:
+
+1. Go to `Settings` -> `Environment Variables`
+2. Add:
+   - Name: `BACKEND_URL`
+   - Value: your Render base URL
+3. Save the variable
+
+## Step 3: Deploy The Frontend On Vercel
 
 1. Sign in at `https://vercel.com` using your GitHub account.
 2. Click `Add New` -> `Project`.
@@ -51,23 +93,9 @@ After import, verify these:
 - Build Command: empty
 - Output Directory: empty
 
-## Python Version
-
-If Vercel asks for a Python version, use Python `3.11`.
-
-## Local Dependencies
-
-For local Streamlit work and training, install:
-
-```bash
-pip install -r requirements-local.txt
-```
-
-Vercel should continue using `requirements.txt`, which is intentionally slimmer.
-
 ## After Deployment
 
-When deployment finishes:
+When both deployments finish:
 
 1. Open the generated Vercel URL.
 2. Paste a passage into the text area.
@@ -85,17 +113,26 @@ When deployment finishes:
 
 - Your committed model artifacts in `models/` are small enough for this deployment style.
 - `data/raw/*.csv` is ignored by Git, so the deployed app should not depend on those CSV files.
-- If some trained artifacts are missing during deployment, the app will still run in demo mode.
+- If some trained artifacts are missing on Render, the backend still runs in demo mode.
 
-## Local Smoke Test
+## Local Smoke Tests
 
-You can test the Vercel entrypoint locally with:
+Test the backend locally with:
 
 ```bash
-python -m flask --app api/index.py run
+python -m flask --app backend/app.py run --port 8000
 ```
 
-Then open:
+Then test the frontend by opening `index.html` through a simple local server or after deploying to Vercel.
+
+If you want to test the frontend against a local backend, point requests to a local server or deploy the backend first.
+
+## Why This Works Better
+
+- Vercel no longer bundles Python ML dependencies
+- Render handles the heavier inference runtime
+- your dataset/model approach can stay intact
+- the frontend remains fast and easy to redeploy
 
 ```text
 http://127.0.0.1:5000

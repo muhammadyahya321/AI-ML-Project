@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: ai-ml-project-backend
+    env: python
+    plan: free
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: gunicorn backend.app:app
+    healthCheckPath: /api/health
+    autoDeploy: true
