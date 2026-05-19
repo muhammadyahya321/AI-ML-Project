@@ -13,3 +13,4 @@ kaggle>=1.5.16
 nbformat>=5.9.0
 nltk>=3.8.1
 rouge-score>=0.1.2
+Flask>=3.0.0

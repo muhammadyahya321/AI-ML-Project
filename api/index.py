@@ -1,0 +1,504 @@
+"""Vercel entrypoint for the RACE Quiz AI web app."""
+
+from __future__ import annotations
+
+import os
+import sys
+from functools import lru_cache
+
+from flask import Flask, jsonify, render_template_string, request
+
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SRC_DIR = os.path.join(ROOT_DIR, "src")
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
+from inference import RaceInferenceEngine  # noqa: E402
+
+app = Flask(__name__)
+
+PAGE_HTML = """
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RACE Quiz AI</title>
+  <style>
+    :root {
+      --bg: #08111f;
+      --panel: rgba(12, 22, 39, 0.82);
+      --panel-2: rgba(18, 31, 53, 0.92);
+      --line: rgba(148, 163, 184, 0.18);
+      --text: #e8eef7;
+      --muted: #9fb0c7;
+      --blue: #4ea1ff;
+      --green: #37c38f;
+      --amber: #f3b33d;
+      --red: #fb7185;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Arial, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(78, 161, 255, 0.18), transparent 34%),
+        radial-gradient(circle at bottom right, rgba(55, 195, 143, 0.14), transparent 30%),
+        linear-gradient(180deg, #050b15 0%, #08111f 100%);
+      min-height: 100vh;
+    }
+    .wrap {
+      width: min(1100px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 56px;
+    }
+    .hero, .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 22px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28);
+    }
+    .hero {
+      padding: 32px;
+      margin-bottom: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      inset: 0 auto auto 0;
+      height: 4px;
+      width: 100%;
+      background: linear-gradient(90deg, var(--blue), var(--green), var(--amber));
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.3rem);
+      line-height: 1.05;
+    }
+    p {
+      margin: 0;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+    .hero-meta {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+    .pill {
+      border: 1px solid rgba(78, 161, 255, 0.28);
+      color: #cce3ff;
+      background: rgba(78, 161, 255, 0.1);
+      border-radius: 999px;
+      padding: 8px 12px;
+      font-size: 0.92rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap: 24px;
+    }
+    .panel {
+      padding: 24px;
+    }
+    label {
+      display: block;
+      margin-bottom: 10px;
+      font-weight: 600;
+    }
+    textarea {
+      width: 100%;
+      min-height: 280px;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(3, 9, 18, 0.88);
+      color: var(--text);
+      padding: 16px;
+      resize: vertical;
+      font: inherit;
+    }
+    textarea:focus {
+      outline: 2px solid rgba(78, 161, 255, 0.35);
+      border-color: rgba(78, 161, 255, 0.45);
+    }
+    .actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+    button {
+      appearance: none;
+      border: 0;
+      border-radius: 14px;
+      padding: 14px 18px;
+      font: inherit;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.18s ease, opacity 0.18s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button.primary {
+      background: linear-gradient(135deg, #2284f7, #4ea1ff);
+      color: white;
+    }
+    button.secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid var(--line);
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+    .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+    }
+    .stat .k {
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .stat .v {
+      font-size: 1.6rem;
+      font-weight: 800;
+      margin-top: 8px;
+    }
+    .note {
+      padding: 14px 16px;
+      border-radius: 16px;
+      border: 1px solid rgba(243, 179, 61, 0.28);
+      background: rgba(243, 179, 61, 0.1);
+      color: #f7d58d;
+      margin-bottom: 16px;
+    }
+    .hidden { display: none; }
+    .result-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .question {
+      font-size: 1.18rem;
+      font-weight: 700;
+      line-height: 1.5;
+      padding: 18px;
+      border-left: 4px solid var(--blue);
+      border-radius: 0 16px 16px 0;
+      background: rgba(78, 161, 255, 0.1);
+      margin-bottom: 14px;
+    }
+    .option {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px;
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .option input { margin-top: 5px; }
+    .feedback {
+      margin-top: 16px;
+      padding: 14px 16px;
+      border-radius: 16px;
+      display: none;
+    }
+    .feedback.ok {
+      display: block;
+      background: rgba(55, 195, 143, 0.12);
+      border: 1px solid rgba(55, 195, 143, 0.28);
+      color: #9ce2c7;
+    }
+    .feedback.bad {
+      display: block;
+      background: rgba(251, 113, 133, 0.12);
+      border: 1px solid rgba(251, 113, 133, 0.28);
+      color: #ffc1cb;
+    }
+    .hint {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--line);
+    }
+    .error {
+      display: none;
+      margin-top: 14px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(251, 113, 133, 0.12);
+      border: 1px solid rgba(251, 113, 133, 0.28);
+      color: #ffc1cb;
+    }
+    .footer {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.93rem;
+    }
+    @media (max-width: 860px) {
+      .grid { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>RACE Quiz AI</h1>
+      <p>Deployable Vercel version of your reading-comprehension project. It reuses the existing inference pipeline and exposes quiz generation through a lightweight Flask app.</p>
+      <div class="hero-meta">
+        <span class="pill">GitHub -> Vercel ready</span>
+        <span class="pill">Traditional ML inference</span>
+        <span class="pill" id="modePill">Checking model status...</span>
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="panel">
+        <label for="article">Paste a reading passage</label>
+        <textarea id="article" placeholder="Paste your article or passage here..."></textarea>
+        <div class="actions">
+          <button class="primary" id="generateBtn">Generate Quiz</button>
+          <button class="secondary" id="sampleBtn" type="button">Load Sample Passage</button>
+        </div>
+        <div class="error" id="errorBox"></div>
+      </section>
+
+      <aside class="panel">
+        <div class="stats">
+          <div class="stat">
+            <div class="k">Words</div>
+            <div class="v" id="wordCount">0</div>
+          </div>
+          <div class="stat">
+            <div class="k">Characters</div>
+            <div class="v" id="charCount">0</div>
+          </div>
+        </div>
+        <div class="note" id="modeNote">Loading runtime details...</div>
+        <p>This Vercel version focuses on the core deployable experience: article input, quiz generation, hints, confidence, and answer checking.</p>
+      </aside>
+    </div>
+
+    <section class="panel hidden" id="resultPanel" style="margin-top: 24px;">
+      <div class="result-head">
+        <h2 style="margin: 0;">Quiz Result</h2>
+        <span class="pill" id="confidencePill">Confidence: -</span>
+      </div>
+      <div class="question" id="questionText"></div>
+      <form id="quizForm"></form>
+      <div class="actions">
+        <button class="primary" id="checkBtn" type="button">Check My Answer</button>
+        <button class="secondary" id="hintBtn" type="button">Show Next Hint</button>
+      </div>
+      <div class="feedback" id="feedbackBox"></div>
+      <div id="hintsBox"></div>
+      <div class="footer" id="latencyText"></div>
+    </section>
+  </div>
+
+  <script>
+    const articleBox = document.getElementById("article");
+    const wordCount = document.getElementById("wordCount");
+    const charCount = document.getElementById("charCount");
+    const generateBtn = document.getElementById("generateBtn");
+    const sampleBtn = document.getElementById("sampleBtn");
+    const errorBox = document.getElementById("errorBox");
+    const resultPanel = document.getElementById("resultPanel");
+    const questionText = document.getElementById("questionText");
+    const quizForm = document.getElementById("quizForm");
+    const feedbackBox = document.getElementById("feedbackBox");
+    const hintsBox = document.getElementById("hintsBox");
+    const hintBtn = document.getElementById("hintBtn");
+    const checkBtn = document.getElementById("checkBtn");
+    const confidencePill = document.getElementById("confidencePill");
+    const latencyText = document.getElementById("latencyText");
+    const modePill = document.getElementById("modePill");
+    const modeNote = document.getElementById("modeNote");
+
+    const sampleArticle = "Sara visited the library after school. She borrowed a science book, found a quiet table near the window, and read until dinner. Before leaving, she wrote down three facts for her homework assignment.";
+
+    let currentQuiz = null;
+    let hintIndex = 0;
+
+    function updateCounts() {
+      const text = articleBox.value.trim();
+      wordCount.textContent = text ? text.split(/\\s+/).length : 0;
+      charCount.textContent = articleBox.value.length;
+    }
+
+    function setError(message) {
+      errorBox.style.display = message ? "block" : "none";
+      errorBox.textContent = message || "";
+    }
+
+    function renderQuiz(quiz) {
+      currentQuiz = quiz;
+      hintIndex = 0;
+      resultPanel.classList.remove("hidden");
+      questionText.textContent = quiz.question;
+      confidencePill.textContent = `Confidence: ${Number(quiz.confidence || 0).toFixed(2)}`;
+      latencyText.textContent = `Inference time: ${quiz.inference_time_ms} ms`;
+      feedbackBox.className = "feedback";
+      feedbackBox.textContent = "";
+      hintsBox.innerHTML = "";
+
+      quizForm.innerHTML = Object.entries(quiz.options).map(([label, text]) => `
+        <label class="option">
+          <input type="radio" name="answer" value="${label}">
+          <div><strong>${label}.</strong> ${text}</div>
+        </label>
+      `).join("");
+
+      modePill.textContent = quiz.demo_mode ? "Demo mode" : "Trained mode";
+      modeNote.textContent = quiz.demo_mode
+        ? "Some trained artifacts are unavailable, so fallback scoring is active."
+        : "All core inference artifacts loaded successfully.";
+    }
+
+    async function generateQuiz() {
+      const article = articleBox.value.trim();
+      if (!article) {
+        setError("Paste an article before generating a quiz.");
+        return;
+      }
+
+      setError("");
+      generateBtn.disabled = true;
+      generateBtn.textContent = "Generating...";
+
+      try {
+        const response = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ article })
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload.error || "Quiz generation failed.");
+        }
+        renderQuiz(payload);
+      } catch (error) {
+        setError(error.message || "Quiz generation failed.");
+      } finally {
+        generateBtn.disabled = false;
+        generateBtn.textContent = "Generate Quiz";
+      }
+    }
+
+    checkBtn.addEventListener("click", () => {
+      if (!currentQuiz) return;
+      const selected = document.querySelector('input[name="answer"]:checked');
+      if (!selected) {
+        setError("Select an option before checking your answer.");
+        return;
+      }
+      setError("");
+      const correct = selected.value === currentQuiz.correct;
+      feedbackBox.className = `feedback ${correct ? "ok" : "bad"}`;
+      feedbackBox.textContent = correct
+        ? `Correct. The answer is ${currentQuiz.correct}: ${currentQuiz.options[currentQuiz.correct]}.`
+        : `Not quite. The correct answer is ${currentQuiz.correct}: ${currentQuiz.options[currentQuiz.correct]}.`;
+    });
+
+    hintBtn.addEventListener("click", () => {
+      if (!currentQuiz || hintIndex >= currentQuiz.hints.length) return;
+      const hint = document.createElement("div");
+      hint.className = "hint";
+      hint.textContent = `Hint ${hintIndex + 1}: ${currentQuiz.hints[hintIndex]}`;
+      hintsBox.appendChild(hint);
+      hintIndex += 1;
+      if (hintIndex >= currentQuiz.hints.length) {
+        hintBtn.disabled = true;
+        hintBtn.textContent = "All Hints Shown";
+      }
+    });
+
+    articleBox.addEventListener("input", updateCounts);
+    sampleBtn.addEventListener("click", () => {
+      articleBox.value = sampleArticle;
+      updateCounts();
+      setError("");
+    });
+    generateBtn.addEventListener("click", generateQuiz);
+
+    updateCounts();
+
+    fetch("/api/health")
+      .then((response) => response.json())
+      .then((payload) => {
+        modePill.textContent = payload.demo_mode ? "Demo mode" : "Trained mode";
+        modeNote.textContent = payload.demo_mode
+          ? "The deployment is healthy, but some trained artifacts were not loaded."
+          : "The deployment is healthy and trained artifacts are available.";
+      })
+      .catch(() => {
+        modePill.textContent = "Status unavailable";
+        modeNote.textContent = "The app loaded, but the health check could not be reached yet.";
+      });
+  </script>
+</body>
+</html>
+"""
+
+
+@lru_cache(maxsize=1)
+def get_engine() -> RaceInferenceEngine:
+    """Load inference artifacts once per runtime container."""
+    return RaceInferenceEngine(model_dir=os.path.join(ROOT_DIR, "models"))
+
+
+@app.get("/")
+def home() -> str:
+    """Render the lightweight Vercel-friendly UI."""
+    return render_template_string(PAGE_HTML)
+
+
+@app.get("/api/health")
+def health() -> tuple[dict[str, object], int]:
+    """Return deployment health and model mode."""
+    engine = get_engine()
+    return (
+        {
+            "ok": True,
+            "demo_mode": engine.use_demo_mode,
+        },
+        200,
+    )
+
+
+@app.post("/api/generate")
+def generate() -> tuple[object, int]:
+    """Generate a quiz from the submitted article text."""
+    payload = request.get_json(silent=True) or request.form.to_dict()
+    article = str(payload.get("article", "")).strip()
+    if not article:
+        return jsonify({"error": "Article text is required."}), 400
+
+    try:
+        result = get_engine().run_full_pipeline(article)
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+    return jsonify(result), 200
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
