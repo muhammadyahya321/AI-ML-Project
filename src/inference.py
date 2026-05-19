@@ -15,12 +15,22 @@ from scipy import sparse
 
 try:
     from preprocessing import extract_lexical_features
-    from model_a_train import generate_questions
-    from model_b_train import extract_candidate_phrases, frequency_based_substitution, generate_hints, rank_distractors
+    from runtime_helpers import (
+        extract_candidate_phrases,
+        frequency_based_substitution,
+        generate_hints,
+        generate_questions,
+        rank_distractors,
+    )
 except ImportError:  # pragma: no cover
     from .preprocessing import extract_lexical_features
-    from .model_a_train import generate_questions
-    from .model_b_train import extract_candidate_phrases, frequency_based_substitution, generate_hints, rank_distractors
+    from .runtime_helpers import (
+        extract_candidate_phrases,
+        frequency_based_substitution,
+        generate_hints,
+        generate_questions,
+        rank_distractors,
+    )
 
 RANDOM_STATE = 42
 

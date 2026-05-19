@@ -10,6 +10,9 @@ The original UI in `ui/app.py` is a Streamlit app. Vercel does not host Streamli
 
 - `api/index.py`: Vercel Python entrypoint
 - `vercel.json`: rewrites the site root and API requests to the Flask app
+- `.vercelignore`: excludes local-only folders and large non-runtime assets from deployment
+- `requirements.txt`: slim runtime dependencies for Vercel
+- `requirements-local.txt`: full local development dependencies for Streamlit and training
 
 ## Before You Deploy
 
@@ -17,7 +20,9 @@ Make sure these files are committed and pushed to your GitHub repository:
 
 - `api/index.py`
 - `vercel.json`
+- `.vercelignore`
 - `src/inference.py` update
+- `src/runtime_helpers.py`
 - `requirements.txt`
 
 ## GitHub Repo
@@ -49,6 +54,16 @@ After import, verify these:
 ## Python Version
 
 If Vercel asks for a Python version, use Python `3.11`.
+
+## Local Dependencies
+
+For local Streamlit work and training, install:
+
+```bash
+pip install -r requirements-local.txt
+```
+
+Vercel should continue using `requirements.txt`, which is intentionally slimmer.
 
 ## After Deployment
 
