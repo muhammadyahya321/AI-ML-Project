@@ -15,12 +15,22 @@ from scipy import sparse
 
 try:
     from preprocessing import extract_lexical_features
-    from model_a_train import generate_questions
-    from model_b_train import extract_candidate_phrases, frequency_based_substitution, generate_hints, rank_distractors
+    from runtime_helpers import (
+        extract_candidate_phrases,
+        frequency_based_substitution,
+        generate_hints,
+        generate_questions,
+        rank_distractors,
+    )
 except ImportError:  # pragma: no cover
     from .preprocessing import extract_lexical_features
-    from .model_a_train import generate_questions
-    from .model_b_train import extract_candidate_phrases, frequency_based_substitution, generate_hints, rank_distractors
+    from .runtime_helpers import (
+        extract_candidate_phrases,
+        frequency_based_substitution,
+        generate_hints,
+        generate_questions,
+        rank_distractors,
+    )
 
 RANDOM_STATE = 42
 
@@ -46,21 +56,32 @@ class RaceInferenceEngine:
         """Load saved models and vectorizers with graceful demo fallback."""
         model_a_dir = os.path.join(self.model_dir, "model_a", "traditional")
         model_b_dir = os.path.join(self.model_dir, "model_b", "traditional")
-        processed_dir = os.path.join("data", "processed")
+        project_root = os.path.abspath(os.path.join(self.model_dir, os.pardir))
+        processed_dir = os.path.join(project_root, "data", "processed")
+        model_a_ready = False
+        model_b_ready = False
         try:
             self.lr_model = joblib.load(os.path.join(model_a_dir, "logistic_regression.pkl"))
             self.svm_model = joblib.load(os.path.join(model_a_dir, "linear_svc_calibrated.pkl"))
+        except Exception as exc:
+            print(f"Model A classifiers unavailable; demo mode enabled: {exc}")
+        try:
             self.ohe_vectorizer = joblib.load(os.path.join(processed_dir, "ohe_vectorizer.pkl"))
         except Exception as exc:
-            print(f"Model A artifacts unavailable; demo mode enabled: {exc}")
-            self.use_demo_mode = True
+            print(f"Processed vectorizer unavailable; trying Model B fallback: {exc}")
         try:
             self.model_b_artifacts = joblib.load(os.path.join(model_b_dir, "model_b_artifacts.pkl"))
             if self.ohe_vectorizer is None and "vectorizer" in self.model_b_artifacts:
                 self.ohe_vectorizer = self.model_b_artifacts["vectorizer"]
+            model_b_ready = True
         except Exception as exc:
             print(f"Model B artifacts unavailable; rule-based generation enabled: {exc}")
-            self.use_demo_mode = True
+        model_a_ready = (
+            self.lr_model is not None
+            and self.svm_model is not None
+            and self.ohe_vectorizer is not None
+        )
+        self.use_demo_mode = not (model_a_ready and model_b_ready and self.ohe_vectorizer is not None)
 
     @staticmethod
     def _combined_text(article: str, question: str, option: str) -> str:

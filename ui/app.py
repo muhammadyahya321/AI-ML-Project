@@ -41,16 +41,26 @@ def apply_theme() -> None:
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
         
         :root {
-            --rc-bg: #0f172a;
-            --rc-panel: rgba(30, 41, 59, 0.7);
-            --rc-ink: #f8fafc;
-            --rc-muted: #94a3b8;
-            --rc-line: rgba(255, 255, 255, 0.1);
-            --rc-blue: #3b82f6;
-            --rc-blue-hover: #60a5fa;
-            --rc-green: #10b981;
-            --rc-red: #ef4444;
-            --rc-amber: #f59e0b;
+            --rc-bg: #0b1220;
+            --rc-panel: rgba(17, 24, 39, 0.72);
+            --rc-ink: #e6edf6;
+            --rc-muted: #b6c2d6;
+            --rc-line: rgba(148, 163, 184, 0.22);
+            --rc-blue: #60a5fa;
+            --rc-blue-hover: #93c5fd;
+            --rc-green: #34d399;
+            --rc-red: #fb7185;
+            --rc-amber: #fbbf24;
+            --rc-text-strong: #ffffff;
+        }
+
+        /* Better default contrast for Streamlit text */
+        .stMarkdown, .stText, .stCode, .stTable, .stDataFrame {
+            color: var(--rc-ink) !important;
+        }
+
+        .stMarkdown * {
+            color: inherit !important;
         }
         
         html, body, [class*="css"] {
@@ -237,10 +247,18 @@ def apply_theme() -> None:
         }
 
         textarea, input, .stSelectbox > div > div {
-            background: rgba(30, 41, 59, 0.6) !important;
-            border: 1px solid rgba(255, 255, 255, 0.1) !important;
+            background: rgba(3, 7, 18, 0.55) !important;
+            border: 1px solid rgba(148, 163, 184, 0.28) !important;
             border-radius: 12px !important;
-            color: #f8fafc !important;
+            color: var(--rc-ink) !important;
+        }
+
+        textarea::placeholder, input::placeholder {
+            color: rgba(182, 194, 214, 0.75) !important;
+        }
+
+        div[role="textbox"], .stMarkdown {
+            color: var(--rc-ink) !important;
         }
         textarea:focus, input:focus {
             border-color: #3b82f6 !important;
