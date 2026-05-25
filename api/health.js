@@ -1,4 +1,4 @@
-const { getBackendUrl } = require("./_backend");
+const { getBackendUrl } = require("../lib/backend");
 
 module.exports = async (req, res) => {
   const backendUrl = getBackendUrl();
