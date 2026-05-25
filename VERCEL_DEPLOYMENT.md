@@ -59,19 +59,22 @@ You should get JSON like:
 
 ## Step 2: Configure Vercel To Point At Render
 
-After Render is live, copy the backend base URL.
-
-Example:
+By default, the Vercel proxy falls back to the Render service name from this repo:
 
 `https://ai-ml-project-backend.onrender.com`
 
-Then in Vercel project settings:
+If your Render service uses that exact name, you do not need to set any Vercel environment variable.
+
+Only add a Vercel environment variable if your Render URL is different. Then in Vercel project settings:
 
 1. Go to `Settings` -> `Environment Variables`
-2. Add:
+2. Add either:
    - Name: `BACKEND_URL`
    - Value: your Render base URL
-3. Save the variable
+3. Or add:
+   - Name: `RENDER_SERVICE_NAME`
+   - Value: your Render service name without `https://` or `.onrender.com`
+4. Save the variable
 
 ## Step 3: Deploy The Frontend On Vercel
 

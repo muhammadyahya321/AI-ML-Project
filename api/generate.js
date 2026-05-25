@@ -1,9 +1,7 @@
+const { getBackendUrl } = require("./_backend");
+
 module.exports = async (req, res) => {
-  const backendUrl = process.env.BACKEND_URL;
-  if (!backendUrl) {
-    res.status(500).json({ error: "BACKEND_URL is not configured on Vercel." });
-    return;
-  }
+  const backendUrl = getBackendUrl();
 
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
